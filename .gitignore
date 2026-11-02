@@ -1,0 +1,19 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+venv/
+.env
+
+# Android
+*.iml
+.gradle
+/build/
+*.apk
+
+# Database
+*.db
+*.sqlite
+
+# IDE
+.vscode/
+.idea/
