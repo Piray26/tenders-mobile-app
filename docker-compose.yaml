@@ -1,0 +1,62 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tender-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tender_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Пароль задается в .env}
+      POSTGRES_DB: ${POSTGRES_DB:-tenders_db}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
+      TZ: Europe/Moscow
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tender_user} -d ${POSTGRES_DB:-tenders_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks: [tender-net]
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tender-api
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-tender_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tenders_db}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["app"]
+    restart: unless-stopped
+    networks: [tender-net]
+
+  etl:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["python", "-m", "etl.pipeline"]
+    container_name: tender-etl
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-tender_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tenders_db}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["tools"]
+    networks: [tender-net]
+
+volumes:
+  pgdata:
+
+networks:
+  tender-net:
+    driver: bridge
